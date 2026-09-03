@@ -1,0 +1,172 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "autoname": "SUBS-.YYYY.-.#####",
+ "creation": "2026-08-20 20:51:05.232929",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_zpyb",
+  "amended_from",
+  "member",
+  "gym_plan",
+  "start_date",
+  "end_date",
+  "status",
+  "col_break_1",
+  "total_sessions",
+  "sessions_used",
+  "sales_invoice",
+  "sales_invoice_item",
+  "section_break_freeze",
+  "freeze_start_date",
+  "freeze_end_date",
+  "col_break_freeze",
+  "cancelled_on",
+  "cancel_reason"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_zpyb",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Gym Subscription",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "member",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Member",
+   "options": "Gym Member",
+   "reqd": 1
+  },
+  {
+   "fieldname": "gym_plan",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Gym Plan",
+   "options": "Gym Plan",
+   "reqd": 1
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Start Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "End Date",
+   "reqd": 1
+  },
+  {
+   "default": "Active",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Active\nScheduled\nFrozen\nExpired\nCompleted\nCancelled"
+  },
+  {
+   "fieldname": "col_break_1",
+   "fieldtype": "Column Break",
+   "label": "Column Break"
+  },
+  {
+   "fieldname": "total_sessions",
+   "fieldtype": "Int",
+   "label": "Total Sessions"
+  },
+  {
+   "fieldname": "sessions_used",
+   "fieldtype": "Int",
+   "label": "Sessions Used",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sales_invoice",
+   "fieldtype": "Link",
+   "label": "Linked Invoice",
+   "options": "Sales Invoice",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sales_invoice_item",
+   "fieldtype": "Data",
+   "label": "Sales Invoice Item"
+  },
+  {
+   "fieldname": "section_break_freeze",
+   "fieldtype": "Section Break",
+   "label": "Freeze / Cancellation"
+  },
+  {
+   "fieldname": "freeze_start_date",
+   "fieldtype": "Date",
+   "label": "Freeze Start Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "freeze_end_date",
+   "fieldtype": "Date",
+   "label": "Freeze End Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_break_freeze",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cancelled_on",
+   "fieldtype": "Date",
+   "label": "Cancelled On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cancel_reason",
+   "fieldtype": "Small Text",
+   "label": "Cancel Reason",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-08-21 15:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Gym-ERP-System",
+ "name": "Gym Subscription",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

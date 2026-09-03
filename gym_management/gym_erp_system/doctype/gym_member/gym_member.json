@@ -1,0 +1,59 @@
+{
+ "actions": [],
+ "autoname": "MEM-.YYYY.-.#####",
+ "creation": "2026-08-16 01:13:21.724678",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "full_name", "email", "phone", "joining_date", "membership_expiry_date",
+  "membership_status", "column_break_1", "member_photo", "national_id_cnic",
+  "gender", "height_cm", "weight_kg", "fitness_section", "fitness_goal",
+  "column_break_fitness", "preferred_workout_time", "medical_conditions",
+  "customer", "emergency_section",
+  "emergency_contact_name", "column_break_2", "emergency_contact_phone"
+ ],
+ "fields": [
+  {"fieldname": "full_name", "fieldtype": "Data", "label": "Full Name", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "email", "fieldtype": "Data", "label": "Email", "reqd": 1},
+  {"fieldname": "phone", "fieldtype": "Data", "label": "Phone", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "joining_date", "fieldtype": "Date", "label": "Joining Date"},
+  {"fieldname": "membership_expiry_date", "fieldtype": "Date", "label": "Membership Expiry Date", "read_only": 1},
+  {"fieldname": "membership_status", "fieldtype": "Select", "label": "Membership Status", "options": "Active\nFrozen\nExpired\nInactive", "default": "Active", "read_only": 1, "in_list_view": 1},
+  {"fieldname": "column_break_1", "fieldtype": "Column Break"},
+  {"fieldname": "member_photo", "fieldtype": "Attach Image", "label": "Member Photo"},
+  {"fieldname": "national_id_cnic", "fieldtype": "Data", "label": "CNIC"},
+  {"fieldname": "gender", "fieldtype": "Select", "label": "Gender", "options": "Male\nFemale\nOther"},
+  {"fieldname": "height_cm", "fieldtype": "Float", "label": "Height (cm)"},
+  {"fieldname": "weight_kg", "fieldtype": "Float", "label": "Weight (kg)"},
+  {"fieldname": "fitness_section", "fieldtype": "Section Break", "label": "Fitness Profile"},
+  {"fieldname": "fitness_goal", "fieldtype": "Select", "label": "Fitness Goal", "options": "Weight Loss\nMuscle Gain\nGeneral Fitness\nRehab\nOther"},
+  {"fieldname": "column_break_fitness", "fieldtype": "Column Break"},
+  {"fieldname": "preferred_workout_time", "fieldtype": "Select", "label": "Preferred Workout Time", "options": "Morning\nAfternoon\nEvening\nAny"},
+  {"fieldname": "medical_conditions", "fieldtype": "Small Text", "label": "Medical Conditions / Notes"},
+  {"fieldname": "customer", "fieldtype": "Link", "label": "Linked Customer", "options": "Customer", "read_only": 1},
+  {"fieldname": "emergency_section", "fieldtype": "Section Break", "label": "Emergency Contact Details"},
+  {"fieldname": "emergency_contact_name", "fieldtype": "Data", "label": "Emergency Contact Name"},
+  {"fieldname": "column_break_2", "fieldtype": "Column Break"},
+  {"fieldname": "emergency_contact_phone", "fieldtype": "Data", "label": "Emergency Contact Phone"}
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [
+  {"group": "Subscriptions", "link_doctype": "Gym Subscription", "link_fieldname": "member"},
+  {"group": "Fitness", "link_doctype": "Gym Fitness Log", "link_fieldname": "member"}
+ ],
+ "modified": "2026-08-22 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Gym-ERP-System",
+ "name": "Gym Member",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "System Manager", "share": 1, "write": 1}
+ ],
+ "search_fields": "full_name,phone,national_id_cnic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "full_name",
+ "track_changes": 1
+}

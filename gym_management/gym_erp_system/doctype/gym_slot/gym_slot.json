@@ -1,0 +1,36 @@
+{
+ "actions": [],
+ "autoname": "GSLOT-.YYYY.-.#####",
+ "creation": "2026-08-24 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["member", "gym_subscription", "trainer", "column_break_1", "date", "start_time", "end_time", "status", "rescheduled_from"],
+ "fields": [
+  {"fieldname": "member", "fieldtype": "Link", "label": "Member", "options": "Gym Member", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "gym_subscription", "fieldtype": "Link", "label": "Gym Subscription", "options": "Gym Subscription", "reqd": 1},
+  {"fieldname": "trainer", "fieldtype": "Link", "label": "Trainer", "options": "Gym Trainer", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "column_break_1", "fieldtype": "Column Break"},
+  {"fieldname": "date", "fieldtype": "Date", "label": "Date", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "start_time", "fieldtype": "Time", "label": "Start Time", "in_list_view": 1},
+  {"fieldname": "end_time", "fieldtype": "Time", "label": "End Time"},
+  {"fieldname": "status", "fieldtype": "Select", "label": "Status", "options": "Scheduled\nAttended\nNo-show\nCancelled by Trainer", "default": "Scheduled", "read_only": 1, "in_list_view": 1},
+  {"fieldname": "rescheduled_from", "fieldtype": "Link", "label": "Rescheduled From", "options": "Gym Slot", "read_only": 1}
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-24 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Gym-ERP-System",
+ "name": "Gym Slot",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "System Manager", "share": 1, "write": 1}
+ ],
+ "search_fields": "member,trainer,date",
+ "sort_field": "date",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "member",
+ "track_changes": 1
+}

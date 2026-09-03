@@ -1,0 +1,72 @@
+{
+ "app": "gym_management",
+ "creation": "2026-08-19 18:54:50.876160",
+ "docstatus": 0,
+ "doctype": "Workspace Sidebar",
+ "header_icon": "dumbbell",
+ "idx": 0,
+ "items": [
+  {
+   "child": 0,
+   "collapsible": 1,
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Gym Members",
+   "link_to": "Gym Member",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Attendance",
+   "link_to": "Gym Attendance",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Invoices & Billing",
+   "link_to": "Gym Invoice",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Promo Codes",
+   "link_to": "Gym Promo Code",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Membership Plan",
+   "link_to": "Gym Plan",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-08-19 19:00:12.491548",
+ "modified_by": "Administrator",
+ "module": "Gym-ERP-System",
+ "name": "Gym Operations",
+ "owner": "Administrator",
+ "standard": 1,
+ "title": "Gym Operations"
+}

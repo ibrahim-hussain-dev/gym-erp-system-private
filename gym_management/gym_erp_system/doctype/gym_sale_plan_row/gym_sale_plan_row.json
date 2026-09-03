@@ -1,0 +1,25 @@
+{
+ "actions": [],
+ "creation": "2026-08-21 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "istable": 1,
+ "field_order": ["gym_plan", "mode", "months"],
+ "fields": [
+  {"fieldname": "gym_plan", "fieldtype": "Link", "label": "Plan", "options": "Gym Plan", "in_list_view": 1, "reqd": 1},
+  {"fieldname": "mode", "fieldtype": "Select", "label": "Mode", "options": "One-Time / Package\nPay in Advance", "default": "One-Time / Package", "in_list_view": 1, "reqd": 1},
+  {"fieldname": "months", "fieldtype": "Int", "label": "Months", "default": 1, "in_list_view": 1, "depends_on": "eval:doc.mode==\"Pay in Advance\""}
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-21 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Gym-ERP-System",
+ "name": "Gym Sale Plan Row",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}
