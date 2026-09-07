@@ -360,6 +360,45 @@ frappe.pages['sell-membership'].on_page_load = function(wrapper) {
                         indicator: outstanding > 0 ? 'orange' : 'green',
                         message: `Invoice <b>${r.message.invoice}</b> created. Grand Total: Rs ${r.message.grand_total}. ${payment_line}`
                     });
+                    let bill_doctype = "Sales Invoice";
+                    let bill_name = r.message.invoice;
+                    let bill_format = "Gym Customer Bill";
+                    let preview_url = frappe.urllib.get_full_url(
+                        "/printview?doctype=" + encodeURIComponent(bill_doctype) +
+                        "&name=" + encodeURIComponent(bill_name) +
+                        "&format=" + encodeURIComponent(bill_format) +
+                        "&no_letterhead=1"
+                    );
+                    let pdf_url = frappe.urllib.get_full_url(
+                        "/api/method/frappe.utils.print_format.download_pdf?doctype=" + encodeURIComponent(bill_doctype) +
+                        "&name=" + encodeURIComponent(bill_name) +
+                        "&format=" + encodeURIComponent(bill_format) +
+                        "&no_letterhead=1"
+                    );
+                    let bill_dialog = new frappe.ui.Dialog({
+                        title: 'Customer Bill - ' + bill_name,
+                        size: 'large',
+                        fields: [
+                            {
+                                fieldtype: 'HTML',
+                                fieldname: 'bill_preview',
+                                options: '<iframe id="customer-bill-frame" src="' + preview_url + '" style="width:100%; height:65vh; border:1px solid #e5e5e5; border-radius:6px;"></iframe>'
+                            }
+                        ],
+                        primary_action_label: 'Download PDF',
+                        primary_action: function() {
+                            window.open(pdf_url, '_blank');
+                        },
+                        secondary_action_label: 'Print',
+                        secondary_action: function() {
+                            let frame = bill_dialog.$wrapper.find('#customer-bill-frame')[0];
+                            if (frame && frame.contentWindow) {
+                                frame.contentWindow.focus();
+                                frame.contentWindow.print();
+                            }
+                        }
+                    });
+                    bill_dialog.show();
                     frappe.set_route('Form', 'Sales Invoice', r.message.invoice);
                 }
             }

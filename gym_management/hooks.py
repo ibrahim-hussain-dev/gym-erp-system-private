@@ -4,6 +4,7 @@ app_publisher = "Frappe"
 app_description = "Gym Management System"
 app_email = "admin@example.com"
 app_license = "mit"
+app_include_css = "/assets/gym_management/css/gym_theme.css"
 doc_events = {
     "Sales Invoice": {
         "validate": "gym_management.gym_erp_system.gym_subscription.apply_deferred_revenue",
@@ -12,6 +13,10 @@ doc_events = {
     },
     "Gym Member": {
         "after_insert": "gym_management.gym_erp_system.notifications.send_welcome_email"
+    },
+    "User": {
+        "after_insert": "gym_management.gym_erp_system.user_setup.set_default_workspace_for_gym_user",
+        "on_update": "gym_management.gym_erp_system.user_setup.set_default_workspace_for_gym_user"
     }
 }
 scheduler_events = {
@@ -19,7 +24,8 @@ scheduler_events = {
         "gym_management.gym_erp_system.gym_subscription.update_expired_subscriptions",
         "gym_management.gym_erp_system.gym_slot.mark_noshow_slots",
         "gym_management.gym_erp_system.notifications.send_expiry_reminders",
-        "gym_management.gym_erp_system.notifications.send_invoice_due_reminders"
+        "gym_management.gym_erp_system.notifications.send_invoice_due_reminders",
+        "gym_management.gym_erp_system.gym_subscription.run_daily_backup"
     ]
 }
 fixtures = [

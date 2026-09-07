@@ -1,7 +1,29 @@
 import frappe
 from frappe.utils import add_days, add_months, getdate, nowdate, today
 from gym_management.gym_erp_system.notifications import send_freeze_email, send_auto_renew_email
+
 DEFERRED_REVENUE_ACCOUNT = "Unearned Membership Revenue - GE"
+AUTO_RENEW_PAYMENT_GRACE_DAYS = 5
+
+def sync_member_status(member):
+	"""Recompute Gym Member.membership_status from that member's Gym Subscriptions.
+	Gym Subscription stays the source of truth; this keeps the Member list badge accurate."""
+	if not member:
+		return
+	subs = frappe.get_all("Gym Subscription", filters={"member": member, "docstatus": 1}, fields=["status"])
+	statuses = [s.status for s in subs]
+	if "Frozen" in statuses:
+		new_status = "Frozen"
+	elif "Active" in statuses or "Scheduled" in statuses:
+		new_status = "Active"
+	elif statuses:
+		new_status = "Expired"
+	else:
+		new_status = "Inactive"
+	frappe.db.set_value("Gym Member", member, "membership_status", new_status)
+
+
+
 def compute_end_date(start_date, duration_value, duration_unit, qty=1):
     total = (duration_value or 1) * (qty or 1)
     if duration_unit == "Days":
@@ -10,6 +32,8 @@ def compute_end_date(start_date, duration_value, duration_unit, qty=1):
         return add_days(start_date, (total * 7) - 1)
     else:
         return add_days(add_months(start_date, total), -1)
+
+
 def apply_deferred_revenue(doc, method=None):
     if not doc.get("gym_member"):
         return
@@ -36,6 +60,8 @@ def apply_deferred_revenue(doc, method=None):
             item.deferred_revenue_account = DEFERRED_REVENUE_ACCOUNT
         else:
             item.enable_deferred_revenue = 0
+
+
 def create_subscription_from_invoice(doc, method=None):
     if not doc.get("gym_member"):
         return
@@ -73,6 +99,9 @@ def create_subscription_from_invoice(doc, method=None):
         sub.flags.ignore_permissions = True
         sub.insert()
         sub.submit()
+        sync_member_status(doc.gym_member)
+
+
 def cancel_from_invoice(doc, method=None):
     subscriptions = frappe.get_all(
         "Gym Subscription", filters={"sales_invoice": doc.name, "docstatus": 1}, pluck="name"
@@ -81,6 +110,8 @@ def cancel_from_invoice(doc, method=None):
         sub = frappe.get_doc("Gym Subscription", name)
         sub.flags.ignore_permissions = True
         sub.cancel()
+
+
 def get_start_date(member, plan_group, posting_date):
     last_end = frappe.db.sql("""
         select max(s.end_date) from `tabGym Subscription` s
@@ -94,6 +125,8 @@ def get_start_date(member, plan_group, posting_date):
         if last_end_date >= post_date:
             return add_days(last_end_date, 1)
     return getdate(posting_date)
+
+
 def try_auto_renew(subscription_name):
     sub = frappe.db.get_value(
         "Gym Subscription", subscription_name,
@@ -117,6 +150,7 @@ def try_auto_renew(subscription_name):
     inv = frappe.new_doc("Sales Invoice")
     inv.customer = member.customer
     inv.gym_member = member.name
+    inv.due_date = add_days(nowdate(), AUTO_RENEW_PAYMENT_GRACE_DAYS)
     inv.append("items", {
         "item_code": plan.item,
         "qty": 1,
@@ -130,6 +164,8 @@ def try_auto_renew(subscription_name):
     frappe.db.commit()
     send_auto_renew_email(member.name, plan.plan_name, inv.name, new_end_date)
     return True
+
+
 def update_expired_subscriptions():
     current_date = nowdate()
     expired_subs = frappe.get_all(
@@ -158,7 +194,18 @@ def update_expired_subscriptions():
     )
     for name in frozen_subs:
         frappe.db.set_value("Gym Subscription", name, "status", "Active")
+
+    affected_members = frappe.get_all(
+        "Gym Subscription",
+        filters={"name": ["in", [s.name for s in expired_subs] + scheduled_subs + frozen_subs]},
+        pluck="member",
+    ) if (expired_subs or scheduled_subs or frozen_subs) else []
+    for member in set(affected_members):
+        sync_member_status(member)
+
     frappe.db.commit()
+
+
 @frappe.whitelist()
 def freeze_subscription(subscription, freeze_days):
     freeze_days = int(freeze_days)
@@ -175,8 +222,11 @@ def freeze_subscription(subscription, freeze_days):
         "end_date": new_end_date,
     })
     frappe.db.commit()
+    sync_member_status(sub.member)
     send_freeze_email(subscription)
     return subscription
+
+
 @frappe.whitelist()
 def resume_subscription(subscription):
     sub = frappe.get_doc("Gym Subscription", subscription)
@@ -195,7 +245,10 @@ def resume_subscription(subscription):
         "end_date": new_end_date,
     })
     frappe.db.commit()
+    sync_member_status(sub.member)
     return subscription
+
+
 @frappe.whitelist()
 def cancel_subscription(subscription, reason=None):
     sub = frappe.get_doc("Gym Subscription", subscription)
@@ -207,4 +260,14 @@ def cancel_subscription(subscription, reason=None):
         "cancel_reason": reason or "",
     })
     frappe.db.commit()
+    sync_member_status(sub.member)
     return subscription
+
+
+def run_daily_backup():
+    """Daily job: take a full site backup (database + files) so business data is never at risk of total loss."""
+    try:
+        from frappe.utils.backups import new_backup
+        new_backup(ignore_files=False)
+    except Exception:
+        frappe.log_error(title="Gym Daily Backup Failed", message=frappe.get_traceback())

@@ -1,7 +1,7 @@
 {
  "app": "gym_system",
  "charts": [],
- "content": "[{\"id\":\"header-gym-1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Gym Operations</b></span>\",\"col\":12}},{\"id\":\"ecUIjTfDRs\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b></b></span>Front Desk\",\"col\":12}},{\"id\":\"2wJrzvxVK9\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Sell Membership\",\"col\":3}},{\"id\":\"9F7UdN1kaX\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Gym Member\",\"col\":3}},{\"id\":\"zPl3UK2TRc\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Book Pt Session\",\"col\":3}},{\"id\":\"DIFEN-osjj\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Mark Attendance\",\"col\":3}},{\"id\":\"bBjPhTf0fY\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b></b></span>Operations / Setup\",\"col\":12}},{\"id\":\"ouVFSLfo0G\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Gym Plan\",\"col\":3}},{\"id\":\"-t1K42zYmT\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Gym Slot\",\"col\":3}},{\"id\":\"0rug8_nUIl\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Gym Timing Slot\",\"col\":3}},{\"id\":\"ODbzz0fan4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Gym Trainer\",\"col\":3}},{\"id\":\"pFlG4msx5Z\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Gym Package\",\"col\":3}},{\"id\":\"cfJbt_m9W_\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b></b></span>Finance\",\"col\":12}},{\"id\":\"56imfXxy3u\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Record Expense\",\"col\":3}},{\"id\":\"EBYtGsCFbw\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Gym Expense\",\"col\":3}},{\"id\":\"NioSnMoV_t\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Report</b></span>\",\"col\":12}},{\"id\":\"Va1Jflu_Xe\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Gym Membership Retention\",\"col\":3}},{\"id\":\"LLekdRcYUx\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Gym Trainer Commission\",\"col\":3}},{\"id\":\"5t1bj6ARgE\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Gym Revenue By Plan\",\"col\":3}}]",
+ "content": "[{\"id\": \"header-gym-1\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Gym Operations</b></span>\", \"col\": 12}}, {\"id\": \"ecUIjTfDRs\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b></b></span>Front Desk\", \"col\": 12}}, {\"id\": \"2wJrzvxVK9\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Sell Membership\", \"col\": 3}}, {\"id\": \"9F7UdN1kaX\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Gym Member\", \"col\": 3}}, {\"id\": \"zPl3UK2TRc\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Book Pt Session\", \"col\": 3}}, {\"id\": \"DIFEN-osjj\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Mark Attendance\", \"col\": 3}}, {\"id\": \"bBjPhTf0fY\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b></b></span>Operations / Setup\", \"col\": 12}}, {\"id\": \"ouVFSLfo0G\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Gym Plan\", \"col\": 3}}, {\"id\": \"-t1K42zYmT\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Gym Slot\", \"col\": 3}}, {\"id\": \"0rug8_nUIl\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Gym Timing Slot\", \"col\": 3}}, {\"id\": \"ODbzz0fan4\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Gym Trainer\", \"col\": 3}}, {\"id\": \"pFlG4msx5Z\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Gym Package\", \"col\": 3}}, {\"id\": \"cfJbt_m9W_\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b></b></span>Finance\", \"col\": 12}}, {\"id\": \"56imfXxy3u\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Record Expense\", \"col\": 3}}, {\"id\": \"EBYtGsCFbw\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Gym Expense\", \"col\": 3}}, {\"id\": \"NioSnMoV_t\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Report</b></span>\", \"col\": 12}}, {\"id\": \"LLekdRcYUx\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Gym Trainer Commission\", \"col\": 3}}, {\"id\": \"5t1bj6ARgE\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Gym Revenue By Plan\", \"col\": 3}}]",
  "creation": "2026-08-25 22:46:53.972412",
  "custom_blocks": [],
  "docstatus": 0,
@@ -14,7 +14,7 @@
  "label": "Gym Operations",
  "link_type": "DocType",
  "links": [],
- "modified": "2026-08-27 23:27:14.790278",
+ "modified": "2026-09-05 18:46:19.271171",
  "modified_by": "Administrator",
  "module": "Gym-ERP-System",
  "name": "Gym Operations",
@@ -25,14 +25,6 @@
  "roles": [],
  "sequence_id": 99.0,
  "shortcuts": [
-  {
-   "color": "Grey",
-   "doc_view": "List",
-   "label": "Gym Membership Retention",
-   "link_to": "Gym Membership Retention",
-   "report_ref_doctype": "Gym Subscription",
-   "type": "Report"
-  },
   {
    "color": "Grey",
    "doc_view": "List",

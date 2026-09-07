@@ -1,6 +1,17 @@
 import json
 import frappe
 from frappe.utils import add_days, flt, getdate, nowdate, nowtime, today
+
+
+def _require_roles(*allowed_roles):
+    """Defense-in-depth: block direct API calls from users whose role isn't allowed,
+    even though the corresponding page is already hidden from them in the UI."""
+    always_allowed = {"Administrator", "System Manager"}
+    user_roles = set(frappe.get_roles())
+    if not user_roles & (set(allowed_roles) | always_allowed):
+        frappe.throw("You are not permitted to perform this action.", frappe.PermissionError)
+
+
 def validate_promo_code(code, member=None):
     if not code:
         return None
@@ -29,6 +40,8 @@ def validate_promo_code(code, member=None):
         "discount_percentage": flt(promo.discount_percentage),
         "message": "Promo code applied: {0}% off".format(promo.discount_percentage),
     }
+
+
 @frappe.whitelist()
 def get_billing_preview(plans=None, member=None, mode="One-Time / Package", periods=1, discounts=None, package=None, promo_code=None):
     if isinstance(plans, str):
@@ -103,6 +116,8 @@ def get_billing_preview(plans=None, member=None, mode="One-Time / Package", peri
         if promo_result and promo_result.get("valid"):
             total = total - (total * promo_result["discount_percentage"] / 100)
     return {"total_amount": total, "lines": lines, "promo": promo_result}
+
+
 def apply_line_discount(gross_amount, discount):
     if not discount:
         return gross_amount, 0
@@ -123,6 +138,8 @@ def apply_line_discount(gross_amount, discount):
             "Discount (Rs {0}) cannot exceed the item amount (Rs {1}).".format(discount_amount, gross_amount)
         )
     return gross_amount - discount_amount, discount_amount
+
+
 def get_qty(mode, periods):
     if mode != "Pay in Advance":
         return 1
@@ -130,6 +147,8 @@ def get_qty(mode, periods):
     if periods < 1:
         frappe.throw("Number of Periods must be at least 1.")
     return periods
+
+
 @frappe.whitelist()
 def sell_membership(
     plans=None, member=None, is_new_member=0, full_name=None, phone=None, email=None,
@@ -140,6 +159,7 @@ def sell_membership(
     mode_of_payment="Cash", payment_due_date=None, package=None, auto_renew=0,
     promo_code=None,
 ):
+    _require_roles("Gym Front Desk", "Gym Manager")
     if isinstance(plans, str):
         plans = json.loads(plans)
     plans = plans or []
@@ -275,6 +295,8 @@ def sell_membership(
         "outstanding_amount": inv.outstanding_amount, "due_date": inv.due_date,
         "payment_entry": payment_entry,
     }
+
+
 def create_payment_entry(invoice, amount, mode_of_payment):
     from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
     pe = get_payment_entry("Sales Invoice", invoice.name)
@@ -290,6 +312,8 @@ def create_payment_entry(invoice, amount, mode_of_payment):
     pe.insert(ignore_permissions=True)
     pe.submit()
     return pe.name
+
+
 def get_default_cash_account():
     company = frappe.get_cached_doc("Company", "Gym ERP")
     account = company.default_cash_account or company.default_bank_account
@@ -299,8 +323,11 @@ def get_default_cash_account():
             "Set one before recording payments at time of sale."
         )
     return account
+
+
 @frappe.whitelist()
 def record_expense(expense_date, category, amount, payment_method="Cash", paid_to=None, description=None, receipt=None):
+    _require_roles("Gym Manager")
     amount = flt(amount)
     if amount <= 0:
         frappe.throw("Amount must be greater than zero.")
@@ -315,13 +342,19 @@ def record_expense(expense_date, category, amount, payment_method="Cash", paid_t
     exp.insert(ignore_permissions=True)
     exp.submit()
     return {"name": exp.name, "journal_entry": exp.journal_entry}
+
+
 WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+
 def _is_weekday_in_range(weekday, day_from, day_to):
     order = {d: i for i, d in enumerate(WEEKDAY_NAMES)}
     start, end, target = order[day_from], order[day_to], order[weekday]
     if start <= end:
         return start <= target <= end
     return target >= start or target <= end
+
+
 @frappe.whitelist()
 def get_trainer_windows(trainer, date):
     weekday = WEEKDAY_NAMES[getdate(date).weekday()]
@@ -334,6 +367,8 @@ def get_trainer_windows(trainer, date):
         {"start_time": r.start_time, "end_time": r.end_time}
         for r in rows if _is_weekday_in_range(weekday, r.day_from, r.day_to)
     ]
+
+
 @frappe.whitelist()
 def book_pt_slot(member, gym_subscription, trainer, date, start_time, end_time):
     sub = frappe.db.get_value(
@@ -358,6 +393,8 @@ def book_pt_slot(member, gym_subscription, trainer, date, start_time, end_time):
     })
     slot.insert(ignore_permissions=True)
     return slot.name
+
+
 @frappe.whitelist()
 def mark_attendance(member):
     if frappe.db.exists("Gym Attendance", {"member": member, "date": nowdate()}):
@@ -371,6 +408,8 @@ def mark_attendance(member):
     })
     att.insert(ignore_permissions=True)
     return {"name": att.name}
+
+
 @frappe.whitelist()
 def get_trainer_commission_stats(trainer):
     row = frappe.db.sql("""
@@ -388,6 +427,8 @@ def get_trainer_commission_stats(trainer):
     sessions = r.sessions_attended or 0
     price = flt(r.price_per_session)
     return {"sessions_attended": sessions, "total_commission": sessions * price}
+
+
 @frappe.whitelist()
 def get_member_subscriptions(member):
     return frappe.get_all(
