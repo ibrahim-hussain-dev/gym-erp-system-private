@@ -1,0 +1,26 @@
+{
+ "actions": [],
+ "creation": "2026-08-24 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "istable": 1,
+ "field_order": ["day_from", "day_to", "column_break_1", "start_time", "end_time"],
+ "fields": [
+  {"fieldname": "day_from", "fieldtype": "Select", "label": "From Day", "options": "Monday\nTuesday\nWednesday\nThursday\nFriday\nSaturday\nSunday", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "day_to", "fieldtype": "Select", "label": "To Day", "options": "Monday\nTuesday\nWednesday\nThursday\nFriday\nSaturday\nSunday", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "column_break_1", "fieldtype": "Column Break"},
+  {"fieldname": "start_time", "fieldtype": "Time", "label": "Start Time", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "end_time", "fieldtype": "Time", "label": "End Time", "reqd": 1, "in_list_view": 1}
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-24 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Gym-ERP-System",
+ "name": "Gym Trainer Availability",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

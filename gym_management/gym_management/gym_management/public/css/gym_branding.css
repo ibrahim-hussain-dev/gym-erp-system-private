@@ -1,0 +1,47 @@
+:root {
+  --primary: #00CAAB;
+  --primary-color: #00CAAB;
+}
+
+.btn-primary,
+.btn-primary:focus {
+  background-color: #00CAAB !important;
+  border-color: #00CAAB !important;
+}
+.btn-primary:hover {
+  background-color: #00a88d !important;
+  border-color: #00a88d !important;
+}
+
+.navbar {
+  background-color: #ffffff !important;
+  border-bottom: 2px solid #00CAAB !important;
+}
+
+.standard-sidebar-item.selected,
+.sidebar-item.selected,
+.desk-sidebar-item.selected a {
+  background-color: rgba(0, 202, 171, 0.12) !important;
+  color: #00966F !important;
+  border-left: 3px solid #90FF00 !important;
+}
+
+a, .navbar-brand {
+  color: #00CAAB;
+}
+a:hover {
+  color: #00966F;
+}
+
+.indicator-pill.green, .indicator.green {
+  background-color: #90FF00 !important;
+  color: #2b3a00 !important;
+}
+
+.page-head .title-text, .title-area .title-text {
+  color: #00966F;
+}
+
+::selection {
+  background: #90FF00;
+}

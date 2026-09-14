@@ -1,0 +1,35 @@
+{
+ "actions": [],
+ "autoname": "TIMING-.###",
+ "creation": "2026-08-24 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["slot_name", "gender", "column_break_1", "day_from", "day_to", "start_time", "end_time", "disabled"],
+ "fields": [
+  {"fieldname": "slot_name", "fieldtype": "Data", "label": "Slot Name", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "gender", "fieldtype": "Select", "label": "Gender", "options": "Male\nFemale\nMixed", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "column_break_1", "fieldtype": "Column Break"},
+  {"fieldname": "day_from", "fieldtype": "Select", "label": "From Day", "options": "Monday\nTuesday\nWednesday\nThursday\nFriday\nSaturday\nSunday", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "day_to", "fieldtype": "Select", "label": "To Day", "options": "Monday\nTuesday\nWednesday\nThursday\nFriday\nSaturday\nSunday", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "start_time", "fieldtype": "Time", "label": "Start Time", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "end_time", "fieldtype": "Time", "label": "End Time", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "disabled", "fieldtype": "Check", "label": "Disabled"}
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-24 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Gym-ERP-System",
+ "name": "Gym Timing Slot",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "System Manager", "share": 1, "write": 1}
+ ],
+ "search_fields": "slot_name",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "slot_name",
+ "track_changes": 1
+}

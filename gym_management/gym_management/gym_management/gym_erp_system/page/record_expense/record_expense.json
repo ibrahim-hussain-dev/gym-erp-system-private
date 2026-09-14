@@ -1,0 +1,23 @@
+{
+ "content": null,
+ "creation": "2026-08-22 00:00:00",
+ "docstatus": 0,
+ "doctype": "Page",
+ "idx": 0,
+ "modified": "2026-08-28 20:01:21.470465",
+ "modified_by": "Administrator",
+ "module": "Gym-ERP-System",
+ "name": "record-expense",
+ "owner": "Administrator",
+ "page_name": "record-expense",
+ "roles": [
+  {
+   "role": "Gym Manager"
+  }
+ ],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "system_page": 0,
+ "title": "Record Expense"
+}

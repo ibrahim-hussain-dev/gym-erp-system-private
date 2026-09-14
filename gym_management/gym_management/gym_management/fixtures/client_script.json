@@ -1,0 +1,13 @@
+[
+ {
+  "docstatus": 0,
+  "doctype": "Client Script",
+  "dt": "Gym Package",
+  "enabled": 1,
+  "modified": "2026-08-28 12:22:18.163374",
+  "module": null,
+  "name": "Gym Package-Form-AutoPrice",
+  "script": "\nfunction recalc(frm) {\n    let mode = frm.doc.pricing_mode;\n    let rows = frm.doc.items || [];\n\n    if (mode === 'Manual Per-Service Price') {\n        let total = rows.reduce((sum, r) => sum + flt(r.price), 0);\n        frm.set_value('overall_price', total);\n    } else if (rows.length) {\n        let overall = flt(frm.doc.overall_price);\n        if (mode === 'One Total Price - Equal Split') {\n            let each = overall / rows.length;\n            rows.forEach(r => { r.price = each; });\n        } else if (mode === 'One Total Price - Proportional Split') {\n            let total_weight = rows.reduce((sum, r) => sum + flt(r.plan_price), 0) || 1;\n            rows.forEach(r => {\n                let weight = flt(r.plan_price) / total_weight;\n                r.price = overall * weight;\n            });\n        }\n        frm.refresh_field('items');\n    }\n}\n\nfrappe.ui.form.on('Gym Package', {\n    pricing_mode: function(frm) {\n        recalc(frm);\n    },\n    overall_price: function(frm) {\n        recalc(frm);\n    },\n    items_add: function(frm) {\n        recalc(frm);\n    },\n    items_remove: function(frm) {\n        recalc(frm);\n    }\n});\n\nfrappe.ui.form.on('Gym Package Item', {\n    gym_plan: function(frm, cdt, cdn) {\n        let row = locals[cdt][cdn];\n        if (!row.gym_plan) return;\n        frappe.db.get_value('Gym Plan', row.gym_plan, 'monthly_fee', (r) => {\n            row.plan_price = r.monthly_fee || 0;\n            if (frm.doc.pricing_mode === 'Manual Per-Service Price') {\n                row.price = row.plan_price;\n            }\n            frm.refresh_field('items');\n            recalc(frm);\n        });\n    },\n    price: function(frm) {\n        recalc(frm);\n    }\n});\n",
+  "view": "Form"
+ }
+]
