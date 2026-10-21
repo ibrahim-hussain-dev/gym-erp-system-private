@@ -21,7 +21,5 @@ class GymFitnessLog(Document):
         updates = {}
         if self.weight_kg:
             updates["weight_kg"] = self.weight_kg
-        if self.height_cm:
-            updates["height_cm"] = self.height_cm
         if updates:
             frappe.db.set_value("Gym Member", self.member, updates)

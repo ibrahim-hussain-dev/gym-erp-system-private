@@ -99,8 +99,16 @@ def get_report_summary(data):
 	churned = total - renewed
 	retention_rate = (renewed / total * 100) if total else 0
 
-	currently_active = frappe.db.count("Gym Subscription", {"status": "Active", "docstatus": 1})
-	currently_frozen = frappe.db.count("Gym Subscription", {"status": "Frozen", "docstatus": 1})
+	# Distinct MEMBERS, not subscription rows -- a member with two simultaneous
+	# active plans (e.g. Gym Access + Personal Training) must count once, not twice.
+	currently_active = frappe.db.sql(
+		"""select count(distinct member) from `tabGym Subscription`
+		   where status = 'Active' and docstatus = 1"""
+	)[0][0]
+	currently_frozen = frappe.db.sql(
+		"""select count(distinct member) from `tabGym Subscription`
+		   where status = 'Frozen' and docstatus = 1"""
+	)[0][0]
 
 	return [
 		{"value": total, "label": "Lapsed Memberships", "datatype": "Int", "indicator": "Blue"},

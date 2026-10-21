@@ -1,10 +1,16 @@
-/* Gym ERP System - Brand Theme (Teal + Lime-Green, matching IMPACT logo) */
+/* Gym ERP System - Brand Theme (Teal + Lime-Green, matching IMPACT logo)
+   LIGHT MODE VERSION - navbar, sidebar and widgets all use light backgrounds
+   with dark text. Accent colors (teal / lime) are kept for highlights only.
+*/
 
 :root {
 	--gym-teal: #0F9B8E;
 	--gym-teal-dark: #0B6E64;
 	--gym-lime: #AEEA00;
-	--gym-navbar-bg: #0B2027;
+	--gym-navbar-bg: #FFFFFF;
+	--gym-sidebar-bg: #FFFFFF;
+	--gym-text-dark: #1B2B2E;
+	--gym-text-muted: #5B6E71;
 
 	--primary: var(--gym-teal);
 	--primary-color: var(--gym-teal);
@@ -15,11 +21,16 @@
 	background-color: var(--gym-navbar-bg) !important;
 	border-bottom: 2px solid var(--gym-teal) !important;
 }
+/* Only the top-level navbar brand/nav-links get the forced text color.
+   Dropdown menus (profile menu, notifications, "My Settings", "Log out")
+   are intentionally left untouched here so Frappe's own light-theme
+   dropdown styling applies - a previous version of this file forced ALL
+   ".navbar a" to white text, which made the Logout item render white
+   text on a white dropdown background (effectively invisible). */
 .navbar .navbar-brand,
-.navbar a,
 .navbar .app-logo,
-.navbar-nav .nav-link {
-	color: #FFFFFF !important;
+.navbar-nav > .nav-item > .nav-link {
+	color: var(--gym-text-dark) !important;
 }
 .navbar .navbar-brand img,
 .navbar .app-logo img,
@@ -64,20 +75,21 @@ a:hover {
 }
 
 .widget.shortcut-widget-box {
-	background: linear-gradient(145deg, #14313A, #0F2229) !important;
-	border: 1px solid rgba(15, 155, 142, 0.35) !important;
+	background: #FFFFFF !important;
+	border: 1px solid rgba(15, 155, 142, 0.3) !important;
 	border-radius: 10px !important;
+	box-shadow: 0 1px 4px rgba(15, 155, 142, 0.08);
 	transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
 .widget.shortcut-widget-box:hover {
 	transform: translateY(-2px);
 	border-color: var(--gym-teal) !important;
-	box-shadow: 0 6px 16px rgba(15, 155, 142, 0.25) !important;
+	box-shadow: 0 6px 16px rgba(15, 155, 142, 0.18) !important;
 }
 .widget.shortcut-widget-box .widget-title,
 .widget.shortcut-widget-box .widget-label,
 .widget.shortcut-widget-box a {
-	color: #FFFFFF !important;
+	color: var(--gym-text-dark) !important;
 	font-weight: 600 !important;
 }
 .widget.shortcut-widget-box .badge,
@@ -96,40 +108,4 @@ a:hover {
 .workspace-sidebar .selected,
 .workspace-tab.active {
 	border-color: var(--gym-lime) !important;
-}
-
-/* Fixed persistent sidebar - overlays default sidebar at same position/size, nothing hidden */
-#gym-fixed-sidebar {
-	display: none;
-}
-body.gym-fixed-nav-active #gym-fixed-sidebar {
-	display: block;
-	position: fixed;
-	left: 0;
-	top: 50px;
-	bottom: 0;
-	width: 220px;
-	background: var(--gym-navbar-bg);
-	z-index: 40;
-	overflow-y: auto;
-	padding: 8px 0;
-	border-right: 1px solid rgba(15,155,142,0.25);
-}
-#gym-fixed-sidebar .gym-nav-link {
-	display: block;
-	padding: 9px 18px;
-	color: #cfd8d7;
-	font-size: 13.5px;
-	text-decoration: none;
-	border-left: 3px solid transparent;
-}
-#gym-fixed-sidebar .gym-nav-link:hover {
-	background: rgba(255,255,255,0.05);
-	color: #ffffff;
-}
-#gym-fixed-sidebar .gym-nav-link.active {
-	color: var(--gym-lime);
-	border-left-color: var(--gym-lime);
-	font-weight: 600;
-	background: rgba(174,234,0,0.07);
 }

@@ -1,0 +1,587 @@
+import frappe
+from frappe.utils import add_days, add_months, flt, getdate, nowdate, today
+from gym_management.gym_erp_system.notifications import send_freeze_email, send_auto_renew_email
+
+AUTO_RENEW_PAYMENT_GRACE_DAYS = 5
+
+def sync_member_status(member):
+	"""Recompute Gym Member.membership_status from that member's Gym Subscriptions.
+	Gym Subscription stays the source of truth; this keeps the Member list badge accurate."""
+	if not member:
+		return
+	subs = frappe.get_all("Gym Subscription", filters={"member": member, "docstatus": 1}, fields=["status"])
+	statuses = [s.status for s in subs]
+	if "Frozen" in statuses:
+		new_status = "Frozen"
+	elif "Active" in statuses or "Scheduled" in statuses:
+		new_status = "Active"
+	elif statuses:
+		new_status = "Expired"
+	else:
+		new_status = "Inactive"
+	frappe.db.set_value("Gym Member", member, "membership_status", new_status)
+
+
+
+def compute_end_date(start_date, duration_value, duration_unit, qty=1):
+    total = (duration_value or 1) * (qty or 1)
+    if duration_unit == "Days":
+        return add_days(start_date, total - 1)
+    elif duration_unit == "Weeks":
+        return add_days(start_date, (total * 7) - 1)
+    else:
+        return add_days(add_months(start_date, total), -1)
+
+
+def resolve_duration(item, plan):
+    """Decide the real duration for a sold item: only trust the Sales Invoice
+    Item's own gym_package_duration_value/gym_package_duration_unit override
+    when a staff member actually entered a duration value (> 0). Those two
+    fields otherwise sit at their do-nothing defaults -- an Int field at 0
+    and a Select field parked on its first option ("Days") -- which used to
+    silently win over the Gym Plan's real duration via a bare `or`, because
+    a non-empty string like "Days" is truthy even when nobody chose it.
+    This is what caused every new subscription to be created as a 1-day
+    membership regardless of the plan actually sold (duration_value fell
+    back to the plan correctly since 0 is falsy, but duration_unit did not,
+    since "Days" is not falsy)."""
+    item_value = item.get("gym_package_duration_value")
+    if item_value:
+        duration_value = item_value
+        duration_unit = item.get("gym_package_duration_unit") or plan.duration_unit
+    else:
+        duration_value = plan.duration_value
+        duration_unit = plan.duration_unit
+    return duration_value, duration_unit
+
+
+def apply_deferred_revenue(doc, method=None):
+    if doc.get("is_return"):
+        return
+    if not doc.get("gym_member"):
+        return
+    for item in doc.items:
+        plan = frappe.db.get_value(
+            "Gym Plan", {"item": item.item_code},
+            ["name", "plan_group", "duration_value", "duration_unit", "one_time_charge"], as_dict=True
+        )
+        if not plan:
+            continue
+        if plan.one_time_charge:
+            item.enable_deferred_revenue = 0
+            continue
+        duration_value, duration_unit = resolve_duration(item, plan)
+        qty = int(item.qty or 1)
+        total_months = (duration_value or 1) * qty if duration_unit == "Months" else 0
+        if total_months > 1:
+            start_date = get_start_date(doc.gym_member, plan.plan_group, doc.posting_date or today())
+            end_date = compute_end_date(start_date, duration_value, duration_unit, qty)
+            item.enable_deferred_revenue = 1
+            item.service_start_date = start_date
+            item.service_end_date = end_date
+            item.deferred_revenue_account = frappe.get_cached_value(
+                "Company", doc.company, "default_deferred_revenue_account"
+            )
+        else:
+            item.enable_deferred_revenue = 0
+
+
+def create_subscription_from_invoice(doc, method=None):
+    sync_trainer_commission(doc)
+    if doc.get("is_return"):
+        return
+    if not doc.get("gym_member"):
+        return
+    for item in doc.items:
+        if frappe.db.exists("Gym Subscription", {"sales_invoice_item": item.name, "docstatus": ["<", 2]}):
+            continue
+        plan = frappe.db.get_value(
+            "Gym Plan", {"item": item.item_code},
+            ["name", "plan_group", "duration_value", "duration_unit", "sessions", "one_time_charge"], as_dict=True
+        )
+        if not plan:
+            continue
+        if plan.one_time_charge:
+            continue
+        duration_value, duration_unit = resolve_duration(item, plan)
+        qty = int(item.qty or 1)
+        start_date = get_start_date(doc.gym_member, plan.plan_group, doc.posting_date or today())
+        end_date = compute_end_date(start_date, duration_value, duration_unit, qty)
+        current_date = getdate(nowdate())
+        status = "Scheduled" if getdate(start_date) > current_date else "Active"
+        total_sessions = (plan.sessions or 0) * qty
+        sub = frappe.get_doc({
+            "doctype": "Gym Subscription",
+            "member": doc.gym_member,
+            "gym_plan": plan.name,
+            "start_date": start_date,
+            "end_date": end_date,
+            "status": status,
+            "total_sessions": total_sessions,
+            "sessions_used": 0,
+            "sales_invoice": doc.name,
+            "sales_invoice_item": item.name,
+        })
+        sub.flags.ignore_permissions = True
+        sub.insert()
+        sub.submit()
+        sync_member_status(doc.gym_member)
+
+
+def cancel_from_invoice(doc, method=None):
+    sync_trainer_commission(doc)
+    subscriptions = frappe.get_all(
+        "Gym Subscription", filters={"sales_invoice": doc.name, "docstatus": 1}, pluck="name"
+    )
+    for name in subscriptions:
+        sub = frappe.get_doc("Gym Subscription", name)
+        sub.flags.ignore_permissions = True
+        sub.cancel()
+
+
+def get_start_date(member, plan_group, posting_date):
+    last_end = frappe.db.sql("""
+        select max(s.end_date) from `tabGym Subscription` s
+        join `tabGym Plan` p on p.name = s.gym_plan
+        where s.member=%s and p.plan_group=%s and s.docstatus=1
+          and s.status in ('Active', 'Scheduled', 'Frozen')
+    """, (member, plan_group))
+    if last_end and last_end[0][0]:
+        last_end_date = getdate(last_end[0][0])
+        post_date = getdate(posting_date)
+        if last_end_date >= post_date:
+            return add_days(last_end_date, 1)
+    return getdate(posting_date)
+
+
+def try_auto_renew(subscription_name):
+    sub = frappe.db.get_value(
+        "Gym Subscription", subscription_name,
+        ["member", "gym_plan"], as_dict=True,
+    )
+    if not sub:
+        return False
+    plan = frappe.db.get_value(
+        "Gym Plan", sub.gym_plan,
+        ["item", "plan_name", "monthly_fee", "one_time_charge", "disabled"], as_dict=True,
+    )
+    if not plan or plan.one_time_charge or plan.disabled:
+        return False
+    member = frappe.db.get_value("Gym Member", sub.member, ["name", "customer"], as_dict=True)
+    if not member or not member.customer:
+        frappe.log_error(
+            title="Gym Auto-Renew Failed",
+            message="Gym Subscription {0}: member {1} has no linked Customer.".format(subscription_name, sub.member),
+        )
+        return False
+    inv = frappe.new_doc("Sales Invoice")
+    inv.customer = member.customer
+    inv.gym_member = member.name
+    inv.due_date = add_days(nowdate(), AUTO_RENEW_PAYMENT_GRACE_DAYS)
+    inv.append("items", {
+        "item_code": plan.item,
+        "qty": 1,
+        "rate": plan.monthly_fee,
+        "price_list_rate": plan.monthly_fee,
+    })
+    inv.insert(ignore_permissions=True)
+    inv.submit()
+    frappe.db.set_value("Gym Subscription", {"sales_invoice": inv.name}, "auto_renew", 1)
+    new_end_date = frappe.db.get_value("Gym Subscription", {"sales_invoice": inv.name}, "end_date")
+    frappe.db.commit()
+    send_auto_renew_email(member.name, plan.plan_name, inv.name, new_end_date)
+    return True
+
+
+def update_expired_subscriptions():
+    current_date = nowdate()
+    expired_subs = frappe.get_all(
+        "Gym Subscription",
+        filters={"status": "Active", "end_date": ["<", current_date], "docstatus": 1},
+        fields=["name", "auto_renew"],
+    )
+    for sub in expired_subs:
+        frappe.db.set_value("Gym Subscription", sub.name, "status", "Expired")
+        if sub.auto_renew:
+            try:
+                try_auto_renew(sub.name)
+            except Exception:
+                frappe.log_error(title="Gym Auto-Renew Failed", message=frappe.get_traceback())
+    scheduled_subs = frappe.get_all(
+        "Gym Subscription",
+        filters={"status": "Scheduled", "start_date": ["<=", current_date], "docstatus": 1},
+        pluck="name",
+    )
+    for name in scheduled_subs:
+        frappe.db.set_value("Gym Subscription", name, "status", "Active")
+    frozen_subs = frappe.get_all(
+        "Gym Subscription",
+        filters={"status": "Frozen", "freeze_end_date": ["<=", current_date], "docstatus": 1},
+        pluck="name",
+    )
+    for name in frozen_subs:
+        frappe.db.set_value("Gym Subscription", name, "status", "Active")
+
+    affected_members = frappe.get_all(
+        "Gym Subscription",
+        filters={"name": ["in", [s.name for s in expired_subs] + scheduled_subs + frozen_subs]},
+        pluck="member",
+    ) if (expired_subs or scheduled_subs or frozen_subs) else []
+    for member in set(affected_members):
+        sync_member_status(member)
+
+    frappe.db.commit()
+
+
+@frappe.whitelist()
+def freeze_subscription(subscription, freeze_days):
+    freeze_days = int(freeze_days)
+    if freeze_days <= 0:
+        frappe.throw("Freeze days must be greater than zero.")
+    sub = frappe.get_doc("Gym Subscription", subscription)
+    if sub.status != "Active":
+        frappe.throw("Only an Active subscription can be frozen.")
+    new_end_date = add_days(sub.end_date, freeze_days)
+    frappe.db.set_value("Gym Subscription", subscription, {
+        "status": "Frozen",
+        "freeze_start_date": nowdate(),
+        "freeze_end_date": add_days(nowdate(), freeze_days),
+        "end_date": new_end_date,
+    })
+    frappe.db.commit()
+    sync_member_status(sub.member)
+    send_freeze_email(subscription)
+    return subscription
+
+
+@frappe.whitelist()
+def resume_subscription(subscription):
+    sub = frappe.get_doc("Gym Subscription", subscription)
+    if sub.status != "Frozen":
+        frappe.throw("Only a Frozen subscription can be resumed.")
+    current_date = getdate(nowdate())
+    planned_freeze_end = getdate(sub.freeze_end_date)
+    if current_date < planned_freeze_end:
+        unused_days = (planned_freeze_end - current_date).days
+        new_end_date = add_days(sub.end_date, -unused_days)
+    else:
+        new_end_date = sub.end_date
+    frappe.db.set_value("Gym Subscription", subscription, {
+        "status": "Active",
+        "freeze_end_date": nowdate(),
+        "end_date": new_end_date,
+    })
+    frappe.db.commit()
+    sync_member_status(sub.member)
+    return subscription
+
+
+@frappe.whitelist()
+def cancel_subscription(subscription, reason=None):
+    sub = frappe.get_doc("Gym Subscription", subscription)
+    if sub.status in ("Cancelled", "Expired"):
+        frappe.throw("This subscription is already {0}.".format(sub.status))
+    frappe.db.set_value("Gym Subscription", subscription, {
+        "status": "Cancelled",
+        "cancelled_on": nowdate(),
+        "cancel_reason": reason or "",
+    })
+    frappe.db.commit()
+    sync_member_status(sub.member)
+    return subscription
+
+
+def run_daily_backup():
+    """Daily job: take a full site backup (database + files) so business data is never at risk of total loss."""
+    try:
+        from frappe.utils.backups import new_backup
+        new_backup(ignore_files=False)
+    except Exception:
+        frappe.log_error(title="Gym Daily Backup Failed", message=frappe.get_traceback())
+
+
+def override_subscription_start_dates(sales_invoice, override_start_date):
+    """Called right after a Sales Invoice is submitted and its Gym Subscriptions
+    have been created the normal way (starting from today/posting_date). Lets
+    the front desk back-date (or forward-date) the actual membership start --
+    e.g. a member's old plan expired on the 31st but they only pay on the 5th;
+    staff can still count the new subscription from the 1st instead of losing
+    those days, while the Sales Invoice itself keeps its real posting date
+    (today) for accounting/receipt purposes. Chains multiple rows in the same
+    plan_group back-to-back, same as the normal auto-calculated flow."""
+    subs = frappe.get_all(
+        "Gym Subscription",
+        filters={"sales_invoice": sales_invoice, "docstatus": 1},
+        fields=["name", "gym_plan", "sales_invoice_item"],
+    )
+    local_group_end = {}
+    current_date = getdate(nowdate())
+    for sub in subs:
+        plan = frappe.db.get_value(
+            "Gym Plan", sub.gym_plan,
+            ["plan_group", "duration_value", "duration_unit"], as_dict=True
+        )
+        if not plan:
+            continue
+        if plan.plan_group in local_group_end:
+            new_start = add_days(local_group_end[plan.plan_group], 1)
+        else:
+            new_start = getdate(override_start_date)
+        qty = frappe.db.get_value("Sales Invoice Item", sub.sales_invoice_item, "qty") if sub.sales_invoice_item else 1
+        new_end = compute_end_date(new_start, plan.duration_value, plan.duration_unit, int(qty or 1))
+        local_group_end[plan.plan_group] = getdate(new_end)
+        new_status = "Scheduled" if getdate(new_start) > current_date else "Active"
+        frappe.db.set_value("Gym Subscription", sub.name, {
+            "start_date": new_start,
+            "end_date": new_end,
+            "status": new_status,
+        })
+    member = frappe.db.get_value("Sales Invoice", sales_invoice, "gym_member")
+    if member:
+        sync_member_status(member)
+    frappe.db.commit()
+
+
+
+def _recompute_trainer_commission(trainer):
+    """Shared calc used by both the live sync (sync_trainer_commission) and
+    the one-off backfill (backfill_trainer_commissions): sum this trainer's
+    submitted sales across every Gym Plan linked to them, times their flat
+    commission_percentage, and store it on Gym Trainer.total_commission_earned."""
+    total_sales = frappe.db.sql(
+        """
+        select coalesce(sum(sii.amount), 0)
+        from `tabSales Invoice Item` sii
+        join `tabGym Plan` gp on gp.item = sii.item_code
+        join `tabSales Invoice` si on si.name = sii.parent
+        where gp.trainer = %s and si.docstatus = 1
+        """,
+        (trainer,),
+    )[0][0]
+    commission_percentage = frappe.db.get_value("Gym Trainer", trainer, "commission_percentage") or 0
+    commission = flt(total_sales) * flt(commission_percentage) / 100
+    frappe.db.set_value("Gym Trainer", trainer, "total_commission_earned", commission)
+
+
+def sync_trainer_commission(doc):
+    """Keep Gym Trainer.total_commission_earned in sync whenever a Sales
+    Invoice is submitted or cancelled. Commission is NOT based on attended
+    PT sessions (that old Gym Slot-based formula never worked in practice --
+    no Gym Slot was ever marked Attended); instead it is a flat percentage
+    of the trainer's total submitted sales, via _recompute_trainer_commission.
+    Recomputed from scratch for every trainer touched by this invoice, so a
+    cancellation correctly removes its share and there is no risk of
+    double-counting or drift."""
+    trainers = set()
+    for item in doc.items:
+        trainer = frappe.db.get_value("Gym Plan", {"item": item.item_code}, "trainer")
+        if trainer:
+            trainers.add(trainer)
+    for trainer in trainers:
+        _recompute_trainer_commission(trainer)
+
+
+def backfill_trainer_commissions():
+    """One-off/maintenance: recompute total_commission_earned for every
+    non-disabled trainer from scratch, independent of any invoice event.
+    Run this once right after turning the feature on, so historical sales
+    are reflected immediately instead of waiting for the next invoice
+    submit/cancel to touch each trainer; safe to re-run any time as a
+    sanity-check resync (it is a pure recompute, not an increment)."""
+    trainers = frappe.get_all("Gym Trainer", filters={"disabled": 0}, pluck="name")
+    for trainer in trainers:
+        _recompute_trainer_commission(trainer)
+    frappe.db.commit()
+    return {"trainers_updated": len(trainers)}
+
+
+def _calc_change_plan(sub, new_plan_name):
+    """Shared calculation used by both preview_change_plan (read-only) and
+    execute_change_plan (writes). Always recomputed server-side from the
+    database -- never trust client-supplied numbers for money. Returns the
+    numbers for BOTH modes at once since they are cheap to compute together
+    and the UI needs to be able to show either."""
+    if sub.status != "Active":
+        frappe.throw("Plan change ke liye subscription Active honi chahiye (abhi: {0}).".format(sub.status))
+
+    old_plan = frappe.db.get_value(
+        "Gym Plan", sub.gym_plan,
+        ["name", "plan_name", "monthly_fee", "duration_value", "duration_unit", "item"],
+        as_dict=True,
+    )
+    if not old_plan:
+        frappe.throw("Purana Gym Plan record nahi mila.")
+
+    new_plan = frappe.db.get_value(
+        "Gym Plan", new_plan_name,
+        ["name", "plan_name", "monthly_fee", "duration_value", "duration_unit", "item", "disabled", "one_time_charge"],
+        as_dict=True,
+    )
+    if not new_plan:
+        frappe.throw("Naya Gym Plan record nahi mila.")
+    if new_plan.name == old_plan.name:
+        frappe.throw("Naya plan purane plan se different hona chahiye.")
+    if new_plan.disabled:
+        frappe.throw("Yeh plan disabled hai, select nahi ho sakta.")
+    if new_plan.one_time_charge:
+        frappe.throw("One-time-charge items (jaise registration) subscription plan nahi hain, in mein switch nahi ho sakta.")
+    if not new_plan.item:
+        frappe.throw("Naye plan ka koi linked Item nahi hai, pehle wo set karein.")
+
+    today_date = getdate(nowdate())
+    start_date = getdate(sub.start_date)
+    end_date = getdate(sub.end_date)
+
+    total_days_old = (end_date - start_date).days + 1
+    remaining_days = (end_date - today_date).days + 1
+    if remaining_days < 0:
+        remaining_days = 0
+    if remaining_days > total_days_old:
+        remaining_days = total_days_old
+
+    old_per_day = flt(old_plan.monthly_fee) / total_days_old if total_days_old > 0 else 0
+    old_credit = flt(round(old_per_day * remaining_days, 2))
+
+    full_end_date = compute_end_date(today_date, new_plan.duration_value, new_plan.duration_unit, 1)
+    full_cost = flt(new_plan.monthly_fee)
+
+    remaining_end_date = None
+    remaining_cost = None
+    if remaining_days > 0:
+        new_full_len_end = compute_end_date(today_date, new_plan.duration_value, new_plan.duration_unit, 1)
+        new_full_len_days = (getdate(new_full_len_end) - today_date).days + 1
+        new_per_day = flt(new_plan.monthly_fee) / new_full_len_days if new_full_len_days > 0 else 0
+        remaining_cost = flt(round(new_per_day * remaining_days, 2))
+        remaining_end_date = add_days(today_date, remaining_days - 1)
+
+    return frappe._dict({
+        "old_plan_name": old_plan.name,
+        "old_plan_label": old_plan.plan_name,
+        "old_plan_item": old_plan.item,
+        "old_monthly_fee": flt(old_plan.monthly_fee),
+        "total_days_old": total_days_old,
+        "remaining_days": remaining_days,
+        "old_credit": old_credit,
+        "new_plan_name": new_plan.name,
+        "new_plan_label": new_plan.plan_name,
+        "new_plan_item": new_plan.item,
+        "new_monthly_fee": flt(new_plan.monthly_fee),
+        "modes": {
+            "remaining": {
+                "available": remaining_days > 0,
+                "new_cost": remaining_cost,
+                "new_end_date": remaining_end_date,
+                "net_amount": flt(round((remaining_cost or 0) - old_credit, 2)) if remaining_days > 0 else None,
+            },
+            "full": {
+                "available": True,
+                "new_cost": full_cost,
+                "new_end_date": full_end_date,
+                "net_amount": flt(round(full_cost - old_credit, 2)),
+            },
+        },
+    })
+
+
+@frappe.whitelist()
+def preview_change_plan(subscription, new_plan):
+    """Read-only: shows the admin exactly what will happen for BOTH modes
+    before anything is committed, so they can pick the right one with full
+    information instead of guessing."""
+    sub = frappe.get_doc("Gym Subscription", subscription)
+    return _calc_change_plan(sub, new_plan)
+
+
+@frappe.whitelist()
+def execute_change_plan(subscription, new_plan, mode):
+    """Cancels the old subscription, issues a Credit Note for its unused
+    value (if any) against the original invoice, and creates a fresh Sales
+    Invoice for the new plan -- the existing create_subscription_from_invoice
+    hook then creates the new Gym Subscription the normal way. Every number
+    is recomputed from scratch here (never trusts whatever the browser
+    showed in preview)."""
+    if mode not in ("remaining", "full"):
+        frappe.throw("Mode 'remaining' ya 'full' hona chahiye.")
+
+    sub = frappe.get_doc("Gym Subscription", subscription)
+    calc = _calc_change_plan(sub, new_plan)
+    chosen = calc.modes[mode]
+    if not chosen["available"]:
+        frappe.throw(
+            "Is subscription ke remaining days 0 hain, 'Remaining Days' mode "
+            "available nahi -- 'Full New Tenure' mode use karein."
+        )
+
+    member = frappe.db.get_value("Gym Member", sub.member, ["name", "customer"], as_dict=True)
+    if not member or not member.customer:
+        frappe.throw("Member ka koi linked Customer nahi hai, bill nahi ban sakti.")
+
+    old_member_name = sub.member
+    new_cost = chosen["new_cost"]
+    net_amount = chosen["net_amount"]
+
+    frappe.db.set_value("Gym Subscription", subscription, {
+        "status": "Cancelled",
+        "cancelled_on": nowdate(),
+        "cancel_reason": "Plan changed to {0} ({1} mode) via Change Plan on {2}.".format(
+            calc.new_plan_label, mode, nowdate()
+        ),
+    })
+
+    credit_note_name = None
+    if calc.old_credit > 0 and sub.sales_invoice:
+        credit_note = frappe.new_doc("Sales Invoice")
+        credit_note.is_return = 1
+        credit_note.return_against = sub.sales_invoice
+        credit_note.customer = member.customer
+        credit_note.gym_member = member.name
+        credit_note.due_date = nowdate()
+        credit_note.append("items", {
+            "item_code": calc.old_plan_item,
+            "qty": -1,
+            "rate": calc.old_credit,
+        })
+        credit_note.remarks = (
+            "Unused credit from {0}: {1} remaining day(s) out of {2}, "
+            "adjusted as part of a plan change to {3}."
+        ).format(calc.old_plan_label, calc.remaining_days, calc.total_days_old, calc.new_plan_label)
+        credit_note.insert(ignore_permissions=True)
+        credit_note.submit()
+        credit_note_name = credit_note.name
+
+    new_invoice = frappe.new_doc("Sales Invoice")
+    new_invoice.customer = member.customer
+    new_invoice.gym_member = member.name
+    new_invoice.due_date = nowdate()
+    item_row = {
+        "item_code": calc.new_plan_item,
+        "qty": 1,
+        "rate": new_cost,
+        "price_list_rate": new_cost,
+    }
+    if mode == "remaining":
+        item_row["gym_package_duration_value"] = calc.remaining_days
+        item_row["gym_package_duration_unit"] = "Days"
+    new_invoice.append("items", item_row)
+    new_invoice.remarks = "Plan change from {0} to {1} ({2} mode).".format(
+        calc.old_plan_label, calc.new_plan_label, mode
+    )
+    new_invoice.insert(ignore_permissions=True)
+    new_invoice.submit()
+
+    sync_member_status(old_member_name)
+    frappe.db.commit()
+
+    new_subscription = frappe.db.get_value(
+        "Gym Subscription", {"sales_invoice": new_invoice.name}, "name"
+    )
+
+    return frappe._dict({
+        "old_credit": calc.old_credit,
+        "new_cost": new_cost,
+        "net_amount": net_amount,
+        "direction": "pay" if net_amount > 0 else ("refund" if net_amount < 0 else "even"),
+        "credit_note": credit_note_name,
+        "new_invoice": new_invoice.name,
+        "new_subscription": new_subscription,
+    })

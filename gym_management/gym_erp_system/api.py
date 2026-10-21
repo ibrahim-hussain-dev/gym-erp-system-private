@@ -12,47 +12,19 @@ def _require_roles(*allowed_roles):
         frappe.throw("You are not permitted to perform this action.", frappe.PermissionError)
 
 
-def validate_promo_code(code, member=None):
-    if not code:
-        return None
-    code = code.strip()
-    promo = frappe.db.get_value(
-        "Gym Promo Code", code,
-        ["name", "discount_percentage", "valid_till", "max_usage", "times_used", "is_active", "single_use_per_member"],
-        as_dict=True,
-    )
-    if not promo:
-        return {"valid": False, "message": "Promo code not found."}
-    if not promo.is_active:
-        return {"valid": False, "message": "This promo code is no longer active."}
-    if promo.valid_till and getdate(promo.valid_till) < getdate(nowdate()):
-        return {"valid": False, "message": "This promo code has expired."}
-    if promo.max_usage and (promo.times_used or 0) >= promo.max_usage:
-        return {"valid": False, "message": "This promo code has reached its usage limit."}
-    if promo.single_use_per_member and member:
-        already_used = frappe.db.exists("Sales Invoice", {
-            "gym_member": member, "promo_code": code, "docstatus": 1
-        })
-        if already_used:
-            return {"valid": False, "message": "This promo code has already been used by this member."}
-    return {
-        "valid": True,
-        "discount_percentage": flt(promo.discount_percentage),
-        "message": "Promo code applied: {0}% off".format(promo.discount_percentage),
-    }
-
-
 @frappe.whitelist()
-def get_billing_preview(plans=None, member=None, mode="One-Time / Package", periods=1, discounts=None, package=None, promo_code=None):
+def get_billing_preview(plans=None, member=None, quantities=None, discounts=None, package=None, overall_discount_type=None, overall_discount_value=0, override_start_date=None):
     if isinstance(plans, str):
         plans = json.loads(plans)
     plans = plans or []
     if isinstance(discounts, str):
         discounts = json.loads(discounts) if discounts else {}
     discounts = discounts or {}
+    if isinstance(quantities, str):
+        quantities = json.loads(quantities) if quantities else {}
+    quantities = quantities or {}
     from gym_management.gym_erp_system.gym_subscription import get_start_date, compute_end_date
     from gym_management.gym_erp_system.gym_package import resolve_package_rows
-    qty = get_qty(mode, periods)
     rows = []
     for plan_name in plans:
         plan = frappe.db.get_value(
@@ -95,11 +67,15 @@ def get_billing_preview(plans=None, member=None, mode="One-Time / Package", peri
                 "gross_amount": gross_amount, "discount_amount": discount_amount, "amount": net_amount,
             })
             continue
-        base_start = get_start_date(member, row["plan_group"], today()) if member else getdate(today())
+        if override_start_date:
+            base_start = getdate(override_start_date)
+        else:
+            base_start = get_start_date(member, row["plan_group"], today()) if member else getdate(today())
         if row["plan_group"] in local_group_end and local_group_end[row["plan_group"]] >= base_start:
             start_date = add_days(getdate(local_group_end[row["plan_group"]]), 1)
         else:
             start_date = base_start
+        qty = int(quantities.get(row["key"]) or 1)
         end_date = compute_end_date(start_date, row["duration_value"], row["duration_unit"], qty)
         local_group_end[row["plan_group"]] = getdate(end_date)
         gross_amount = row["unit_price"] * qty
@@ -110,12 +86,16 @@ def get_billing_preview(plans=None, member=None, mode="One-Time / Package", peri
             "start_date": start_date, "end_date": end_date,
             "gross_amount": gross_amount, "discount_amount": discount_amount, "amount": net_amount,
         })
-    promo_result = None
-    if promo_code:
-        promo_result = validate_promo_code(promo_code, member)
-        if promo_result and promo_result.get("valid"):
-            total = total - (total * promo_result["discount_percentage"] / 100)
-    return {"total_amount": total, "lines": lines, "promo": promo_result}
+    if overall_discount_type and overall_discount_type != "None" and flt(overall_discount_value) > 0:
+        if overall_discount_type == "Percentage":
+            if flt(overall_discount_value) > 100:
+                frappe.throw("Overall discount percentage cannot exceed 100%.")
+            total = total - (total * flt(overall_discount_value) / 100)
+        elif overall_discount_type == "Fixed Amount":
+            if flt(overall_discount_value) > total:
+                frappe.throw("Overall discount (Rs {0}) cannot exceed the total amount (Rs {1}).".format(overall_discount_value, total))
+            total = total - flt(overall_discount_value)
+    return {"total_amount": total, "lines": lines}
 
 
 def apply_line_discount(gross_amount, discount):
@@ -140,32 +120,27 @@ def apply_line_discount(gross_amount, discount):
     return gross_amount - discount_amount, discount_amount
 
 
-def get_qty(mode, periods):
-    if mode != "Pay in Advance":
-        return 1
-    periods = int(periods or 0)
-    if periods < 1:
-        frappe.throw("Number of Periods must be at least 1.")
-    return periods
-
-
 @frappe.whitelist()
 def sell_membership(
     plans=None, member=None, is_new_member=0, full_name=None, phone=None, email=None,
-    national_id_cnic=None, gender=None, height_cm=None, weight_kg=None,
-    fitness_goal=None, preferred_workout_time=None, medical_conditions=None,
+    national_id_cnic=None, member_photo=None, gender=None, height_feet=None, weight_kg=None,
+    fitness_goal=None, preferred_workout_time=None, alternative_workout_time=None, medical_conditions=None, health_issue=None,
+    activity_level=None, workout_history=None,
     emergency_contact_name=None, emergency_contact_phone=None,
-    mode="One-Time / Package", periods=1, discounts=None, amount_received=0,
+    quantities=None, discounts=None, amount_received=0,
     mode_of_payment="Cash", payment_due_date=None, package=None, auto_renew=0,
-    promo_code=None,
+    overall_discount_type=None, overall_discount_value=0, start_date=None,
 ):
-    _require_roles("Gym Front Desk", "Gym Manager")
+    _require_roles("Gym Front Desk", "Gym Owner")
     if isinstance(plans, str):
         plans = json.loads(plans)
     plans = plans or []
     if isinstance(discounts, str):
         discounts = json.loads(discounts) if discounts else {}
     discounts = discounts or {}
+    if isinstance(quantities, str):
+        quantities = json.loads(quantities) if quantities else {}
+    quantities = quantities or {}
     if not plans and not package:
         frappe.throw("Select at least one plan or a package.")
     if int(is_new_member or 0):
@@ -176,24 +151,30 @@ def sell_membership(
         member_doc.phone = phone
         member_doc.email = email
         member_doc.national_id_cnic = national_id_cnic
+        member_doc.member_photo = member_photo
         member_doc.gender = gender
-        member_doc.height_cm = height_cm
+        member_doc.height_feet = height_feet
         member_doc.weight_kg = weight_kg
         member_doc.fitness_goal = fitness_goal
         member_doc.preferred_workout_time = preferred_workout_time
+        member_doc.alternative_workout_time = alternative_workout_time
         member_doc.medical_conditions = medical_conditions
+        member_doc.health_issue = health_issue
+        member_doc.activity_level = activity_level
+        member_doc.workout_history = workout_history
         member_doc.emergency_contact_name = emergency_contact_name
         member_doc.emergency_contact_phone = emergency_contact_phone
         member_doc.joining_date = nowdate()
         member_doc.insert(ignore_permissions=True)
         member = member_doc.name
-        if flt(weight_kg) or flt(height_cm):
+        if flt(weight_kg) or flt(height_feet):
+            _height_cm_calc = flt(height_feet) * 30.48 if height_feet else None
             frappe.get_doc({
                 "doctype": "Gym Fitness Log",
                 "member": member,
                 "log_date": nowdate(),
                 "weight_kg": weight_kg,
-                "height_cm": height_cm,
+                "height_cm": _height_cm_calc,
                 "notes": "Baseline (recorded at registration)",
             }).insert(ignore_permissions=True)
     else:
@@ -202,13 +183,6 @@ def sell_membership(
     gym_member = frappe.get_doc("Gym Member", member)
     if not gym_member.customer:
         frappe.throw("This member is not linked to a Customer.")
-    promo_discount = None
-    if promo_code:
-        promo_result = validate_promo_code(promo_code, member)
-        if not promo_result or not promo_result.get("valid"):
-            frappe.throw((promo_result or {}).get("message") or "Invalid promo code.")
-        promo_discount = promo_result["discount_percentage"]
-    qty = get_qty(mode, periods)
     from gym_management.gym_erp_system.gym_package import resolve_package_rows
     inv = frappe.new_doc("Sales Invoice")
     inv.customer = gym_member.customer
@@ -239,7 +213,7 @@ def sell_membership(
                 "package_duration_unit": r["duration_unit"],
             })
     for row in rows:
-        item_qty = 1 if row["one_time_charge"] else qty
+        item_qty = 1 if row["one_time_charge"] else int(quantities.get(row["key"]) or 1)
         line = {"item_code": row["item"], "qty": item_qty}
         if row["unit_price"] is not None:
             line["rate"] = row["unit_price"]
@@ -268,17 +242,21 @@ def sell_membership(
         inv.append("items", line)
     if payment_due_date:
         inv.due_date = payment_due_date
-    if promo_discount is not None:
+    if overall_discount_type and overall_discount_type != "None" and flt(overall_discount_value) > 0:
         inv.apply_discount_on = "Grand Total"
-        inv.additional_discount_percentage = promo_discount
-        inv.promo_code = promo_code.strip()
+        if overall_discount_type == "Percentage":
+            if flt(overall_discount_value) > 100:
+                frappe.throw("Overall discount percentage cannot exceed 100%.")
+            inv.additional_discount_percentage = flt(inv.additional_discount_percentage or 0) + flt(overall_discount_value)
+        elif overall_discount_type == "Fixed Amount":
+            inv.discount_amount = flt(inv.discount_amount or 0) + flt(overall_discount_value)
     inv.insert(ignore_permissions=True)
     inv.submit()
     if int(auto_renew or 0):
         frappe.db.set_value("Gym Subscription", {"sales_invoice": inv.name}, "auto_renew", 1)
-    if promo_discount is not None:
-        current_uses = frappe.db.get_value("Gym Promo Code", promo_code.strip(), "times_used") or 0
-        frappe.db.set_value("Gym Promo Code", promo_code.strip(), "times_used", current_uses + 1)
+    if start_date:
+        from gym_management.gym_erp_system.gym_subscription import override_subscription_start_dates
+        override_subscription_start_dates(inv.name, getdate(start_date))
     payment_entry = None
     amount_received = flt(amount_received)
     if amount_received > 0:
@@ -327,7 +305,7 @@ def get_default_cash_account():
 
 @frappe.whitelist()
 def record_expense(expense_date, category, amount, payment_method="Cash", paid_to=None, description=None, receipt=None):
-    _require_roles("Gym Manager")
+    _require_roles("Gym Front Desk", "Gym Owner")
     amount = flt(amount)
     if amount <= 0:
         frappe.throw("Amount must be greater than zero.")
@@ -431,9 +409,169 @@ def get_trainer_commission_stats(trainer):
 
 @frappe.whitelist()
 def get_member_subscriptions(member):
-    return frappe.get_all(
+    subs = frappe.get_all(
         "Gym Subscription",
         filters={"member": member, "docstatus": 1, "status": ["in", ["Active", "Scheduled", "Frozen"]]},
         fields=["name", "gym_plan", "status", "start_date", "end_date", "freeze_end_date"],
         order_by="start_date desc",
     )
+    plan_ids = list({s.gym_plan for s in subs if s.gym_plan})
+    plan_names = {}
+    if plan_ids:
+        for p in frappe.get_all("Gym Plan", filters={"name": ["in", plan_ids]}, fields=["name", "plan_name"]):
+            plan_names[p.name] = p.plan_name
+    for s in subs:
+        s["gym_plan_name"] = plan_names.get(s.gym_plan) or s.gym_plan
+    return subs
+
+
+@frappe.whitelist()
+def get_member_summary(member):
+    """Quick history shown when staff pick an existing member in the Sell/
+    Renew dialog: has registration been paid, and what is their most recent
+    plan (by end_date) and its status/expiry. Registration is detected via
+    any submitted Sales Invoice Item against a one_time_charge Gym Plan --
+    the only such plan in this gym's catalog today. Gym Subscription never
+    contains one-time-charge plans (create_subscription_from_invoice skips
+    them), so the "last plan" lookup naturally excludes registration."""
+    if not member or not frappe.db.exists("Gym Member", member):
+        return {}
+    registration_paid = bool(frappe.db.sql("""
+        select 1
+        from `tabSales Invoice Item` sii
+        join `tabSales Invoice` si on si.name = sii.parent
+        join `tabGym Plan` gp on gp.item = sii.item_code
+        where si.gym_member = %s and si.docstatus = 1 and gp.one_time_charge = 1
+        limit 1
+    """, (member,)))
+    last_sub = frappe.get_all(
+        "Gym Subscription",
+        filters={"member": member, "docstatus": 1},
+        fields=["gym_plan", "status", "end_date"],
+        order_by="end_date desc",
+        limit_page_length=1,
+    )
+    last_plan_name = None
+    last_plan_status = None
+    last_plan_end_date = None
+    if last_sub:
+        row = last_sub[0]
+        last_plan_name = frappe.db.get_value("Gym Plan", row.gym_plan, "plan_name") if row.gym_plan else None
+        last_plan_status = row.status
+        last_plan_end_date = row.end_date
+    return {
+        "registration_paid": registration_paid,
+        "last_plan_name": last_plan_name,
+        "last_plan_status": last_plan_status,
+        "last_plan_end_date": last_plan_end_date,
+    }
+
+
+def _can_delete_financial_records():
+    """Only the Gym Owner (plus Administrator/System Manager, and the
+    specific account iibrahihere@gmail.com) may permanently wipe a
+    member's financial records. Gym Front Desk can still use the normal
+    delete (subscription/attendance/fitness log, invoices preserved) --
+    this check only gates the opt-in delete_financial_records=1 path."""
+    if frappe.session.user == "iibrahihere@gmail.com":
+        return True
+    always_allowed_roles = {"Administrator", "System Manager"}
+    user_roles = set(frappe.get_roles())
+    return bool(user_roles & (always_allowed_roles | {"Gym Owner"}))
+
+
+@frappe.whitelist()
+def delete_gym_member(member, delete_financial_records=0):
+    """Permanently delete a Gym Member along with their Gym Subscription,
+    Gym Attendance, and Gym Fitness Log records.
+
+    By default, Sales Invoice, Gym Customer Receipt, and Gym Trainer
+    Commission records are left untouched -- these are financial/payout
+    records kept for accounting purposes.
+
+    Pass delete_financial_records=1 (an explicit, opt-in, type-to-confirm
+    checkbox on the delete dialog -- restricted to the Gym Owner, see
+    _can_delete_financial_records) to ALSO permanently delete those
+    financial records, plus any Payment Entry linked to one of this
+    member's Sales Invoices (deleted first, since Frappe will not let a
+    Sales Invoice with a submitted Payment Entry reference against it be
+    cancelled). Intended only for rare cases such as a member entered
+    entirely by mistake, where there is no real financial history worth
+    preserving. This cannot be undone.
+
+    The member's linked Customer record is always left untouched, even on
+    a full financial wipe, since other data outside this member's own
+    records may still reference it. force=True on every delete bypasses
+    the link-exists check so documents we're intentionally leaving alone
+    don't block the delete; Frappe simply keeps the old member/invoice ID
+    as a plain, non-resolving value on whatever (if anything) still
+    references them afterward."""
+    _require_roles("Gym Front Desk", "Gym Owner")
+    if not frappe.db.exists("Gym Member", member):
+        frappe.throw("Gym Member {0} does not exist.".format(member))
+
+    delete_financial_records = int(delete_financial_records or 0)
+
+    if delete_financial_records and not _can_delete_financial_records():
+        frappe.throw(
+            "Only the Gym Owner can permanently delete a member's financial records.",
+            frappe.PermissionError,
+        )
+
+    deleted_counts = {"Gym Subscription": 0, "Gym Attendance": 0, "Gym Fitness Log": 0}
+
+    for doctype in ("Gym Subscription", "Gym Attendance", "Gym Fitness Log"):
+        names = frappe.get_all(doctype, filters={"member": member}, pluck="name")
+        for name in names:
+            _force_delete(doctype, name)
+            deleted_counts[doctype] += 1
+
+    if delete_financial_records:
+        deleted_counts["Payment Entry"] = 0
+        deleted_counts["Sales Invoice"] = 0
+        deleted_counts["Gym Customer Receipt"] = 0
+        deleted_counts["Gym Trainer Commission"] = 0
+
+        invoice_names = frappe.get_all("Sales Invoice", filters={"gym_member": member}, pluck="name")
+        for inv_name in invoice_names:
+            payment_entry_names = frappe.get_all(
+                "Payment Entry Reference",
+                filters={"reference_doctype": "Sales Invoice", "reference_name": inv_name},
+                pluck="parent",
+            )
+            for pe_name in set(payment_entry_names):
+                if frappe.db.exists("Payment Entry", pe_name):
+                    _force_delete("Payment Entry", pe_name)
+                    deleted_counts["Payment Entry"] += 1
+            _force_delete("Sales Invoice", inv_name)
+            deleted_counts["Sales Invoice"] += 1
+
+        receipt_names = frappe.get_all("Gym Customer Receipt", filters={"member": member}, pluck="name")
+        for name in receipt_names:
+            _force_delete("Gym Customer Receipt", name)
+            deleted_counts["Gym Customer Receipt"] += 1
+
+        commission_names = frappe.get_all("Gym Trainer Commission", filters={"member": member}, pluck="name")
+        for name in commission_names:
+            _force_delete("Gym Trainer Commission", name)
+            deleted_counts["Gym Trainer Commission"] += 1
+
+    _force_delete("Gym Member", member)
+    frappe.db.commit()
+    return {
+        "deleted_member": member,
+        "deleted_counts": deleted_counts,
+        "financial_records_deleted": bool(delete_financial_records),
+    }
+
+
+def _force_delete(doctype, name):
+    """Cancel first if the document is submitted (Frappe refuses to delete a
+    submitted doc otherwise), then delete it, bypassing the link-exists
+    check (force=True) so documents we're intentionally leaving alone
+    elsewhere don't block the delete."""
+    doc = frappe.get_doc(doctype, name)
+    if doc.meta.is_submittable and doc.docstatus == 1:
+        doc.flags.ignore_permissions = True
+        doc.cancel()
+    frappe.delete_doc(doctype, name, ignore_permissions=True, force=True)

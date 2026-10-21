@@ -1,2 +1,0 @@
-Gym ERP System
-gym_erp_system
