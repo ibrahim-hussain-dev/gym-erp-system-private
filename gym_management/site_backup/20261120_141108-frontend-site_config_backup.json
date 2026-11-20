@@ -1,0 +1,14 @@
+{
+ "db_name": "_93d2de25a7ada36b",
+ "db_password": "1ugaV1ZioFkTsypV",
+ "db_type": "mariadb",
+ "db_user": "_93d2de25a7ada36b",
+ "encryption_key": "g3hWPu08G5g_mHWqAcexKcoLCSEwPgnNdXD7rpTIGII=",
+ "installed_apps": [
+  "frappe",
+  "gym_management",
+  "erpnext"
+ ],
+ "maintenance_mode": 0,
+ "server_script_enabled": 1
+}
